@@ -3,8 +3,10 @@ package main
 import (
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -30,6 +32,28 @@ func CommandHandler(command string) {
 		}
 		GetCP(parts[1], parts[2])
 
+	case "mv":
+		if len(parts) < 3 {
+			fmt.Println("Error: Command \"mv\" requires at least 3 arguments")
+			return
+		}
+		GetMV(parts[1], parts[2])
+
+	case "rm":
+		if len(parts) < 2 {
+			fmt.Println("Error: Command \"rm\" requires at least 2 arguments")
+		}
+		GetRM(parts[1])
+	case "mkdir":
+		if len(parts) < 2 {
+			fmt.Println("Error: Command \"mkdir\" requires at least 2 arguments")
+		}
+		GetMKdir(parts[1])
+	case "find":
+		if len(parts) < 2 {
+			fmt.Println("Error: Command \"find\" requires at least 2 arguments")
+		}
+		GetFind(parts[1], parts[2])
 	}
 
 }
@@ -95,4 +119,90 @@ func GetCP(srcName, dstName string) error {
 	}
 
 	return nil
+}
+
+func GetMV(src, dst string) error {
+	sourceFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer sourceFile.Close()
+
+	destFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer destFile.Close()
+
+	_, err = io.Copy(destFile, sourceFile)
+	if err != nil {
+		return err
+	}
+
+	err = os.Remove(src)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func GetRM(FileName string) error {
+
+	err := os.Remove(FileName)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func GetMKdir(DirName string) error {
+	err := os.Mkdir(DirName, 0777)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+func roots() []string {
+	if runtime.GOOS == "windows" {
+		var r []string
+		for c := 'A'; c <= 'Z'; c++ {
+			drive := fmt.Sprintf("%c:\\", c)
+			if _, err := os.Stat(drive); err == nil {
+				r = append(r, drive)
+			}
+		}
+		return r
+	}
+	// unix-like
+	return []string{"/"}
+}
+
+func GetFind(root, target string) (string, error) {
+	var found string
+
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() && d.Name() == target {
+			found = path
+			fmt.Printf("✅ File found: %s\n", path) // Вывод прямо в момент нахождения
+			return filepath.SkipDir                // можно остановить после первого найденного
+		}
+		return nil
+	})
+
+	if err != nil {
+		return "", err
+	}
+
+	if found == "" {
+		fmt.Println("❌ File not found.")
+		return "", nil
+	}
+
+	return found, nil
 }
